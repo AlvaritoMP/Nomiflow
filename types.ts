@@ -29,6 +29,32 @@ export enum UserRole {
   ACCOUNTING = 'ACCOUNTING'
 }
 
+export enum RequirementType {
+  CHECKBOX = 'CHECKBOX',
+  FILE_UPLOAD = 'FILE_UPLOAD'
+}
+
+export interface ResolutionRequirement {
+  id: string;
+  text: string;
+  type: RequirementType;
+  required: boolean;
+}
+
+export interface TicketTemplate {
+  ticketType: TicketType;
+  requirements: ResolutionRequirement[];
+}
+
+export interface ResolutionEvidence {
+  requirementId: string;
+  requirementText: string;
+  isChecked?: boolean;
+  file?: Attachment;
+  resolvedAt: Date;
+  resolvedBy: string;
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -75,6 +101,7 @@ export interface Ticket {
   attachments: Attachment[];
   comments: Comment[];
   aiAnalysis?: string;
+  resolutionEvidence?: ResolutionEvidence[]; // New field for stored resolution data
 }
 
 export interface PayrollTask {

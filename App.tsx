@@ -9,8 +9,8 @@ import { AdminPanel } from './components/AdminPanel';
 import { AuditLog } from './components/AuditLog';
 import { GlobalOverview } from './components/GlobalOverview';
 import { FiscalCalendar } from './components/FiscalCalendar';
-import { MOCK_COMPANIES, MOCK_USERS, INITIAL_TICKETS, generatePayrollCycle, getMockHistory, MOCK_AUDIT_LOGS } from './services/mockData';
-import { Ticket, Status, PayrollCycle, PayrollTask, User, AuditLogEntry, PayrollStage, UserRole, Company } from './types';
+import { MOCK_COMPANIES, MOCK_USERS, INITIAL_TICKETS, generatePayrollCycle, getMockHistory, MOCK_AUDIT_LOGS, MOCK_TEMPLATES } from './services/mockData';
+import { Ticket, Status, PayrollCycle, PayrollTask, User, AuditLogEntry, PayrollStage, UserRole, Company, TicketTemplate, ResolutionEvidence } from './types';
 
 const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -22,6 +22,9 @@ const App: React.FC = () => {
   
   const [tickets, setTickets] = useState<Ticket[]>(INITIAL_TICKETS);
   
+  // Templates State
+  const [templates, setTemplates] = useState<TicketTemplate[]>(MOCK_TEMPLATES);
+
   // User Context (Simulating login switcher for demo)
   const [currentUser, setCurrentUser] = useState<User>(MOCK_USERS[3]); // Default to Admin for demo
 
@@ -84,6 +87,21 @@ const App: React.FC = () => {
   const handleStatusUpdate = (ticketId: string, status: Status) => {
     setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status, updatedAt: new Date() } : t));
     logAudit('TICKET_STATUS_UPDATE', `Ticket ${ticketId} actualizado a ${status}`, ticketId);
+  };
+
+  const handleResolveTicket = (ticketId: string, evidence: ResolutionEvidence[]) => {
+    setTickets(prev => prev.map(t => {
+      if (t.id === ticketId) {
+        return {
+          ...t,
+          status: Status.COMPLETED,
+          updatedAt: new Date(),
+          resolutionEvidence: evidence
+        };
+      }
+      return t;
+    }));
+    logAudit('TICKET_RESOLVED', `Ticket ${ticketId} resuelto con sustento`, ticketId);
   };
 
   const handleCreateTicket = (newTicketData: Omit<Ticket, 'id' | 'createdAt' | 'updatedAt' | 'comments' | 'attachments' | 'status' | 'assignedTo'>) => {
@@ -165,6 +183,11 @@ const App: React.FC = () => {
     setActiveTab('dashboard');
   };
 
+  const handleUpdateTemplates = (newTemplates: TicketTemplate[]) => {
+      setTemplates(newTemplates);
+      logAudit('TEMPLATES_UPDATED', 'Se actualizaron las plantillas de resolución de tickets');
+  };
+
   return (
     <div className="min-h-screen flex bg-slate-50 font-sans text-slate-900">
       <Sidebar 
@@ -220,9 +243,11 @@ const App: React.FC = () => {
           {activeTab === 'tickets' && (
             <TicketSystem 
               tickets={companyTickets}
+              templates={templates}
               currentUser={currentUser}
               onAddComment={handleAddComment}
               onUpdateStatus={handleStatusUpdate}
+              onResolveTicket={handleResolveTicket}
               onTicketUpdate={handleTicketUpdate}
               onCreateTicket={handleCreateTicket}
             />
@@ -233,8 +258,10 @@ const App: React.FC = () => {
           {activeTab === 'admin' && (
             <AdminPanel 
               users={MOCK_USERS}
-              companies={companies} // Pass dynamic companies
+              companies={companies} 
+              templates={templates}
               onAddCompany={handleAddCompany}
+              onUpdateTemplates={handleUpdateTemplates}
             />
           )}
           {activeTab === 'audit' && (

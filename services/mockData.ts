@@ -1,5 +1,5 @@
 
-import { Company, PayrollCycle, Status, Ticket, TicketType, Priority, User, UserRole, AuditLogEntry } from "../types";
+import { Company, PayrollCycle, Status, Ticket, TicketType, Priority, User, UserRole, AuditLogEntry, TicketTemplate, RequirementType } from "../types";
 
 export const MOCK_COMPANIES: Company[] = [
   { id: 'c1', name: 'Corporación Tech Solutions SAC', taxId: '20100100101' },
@@ -61,6 +61,24 @@ export const INITIAL_TICKETS: Ticket[] = [
     updatedAt: new Date(Date.now() - 86400000 * 3),
     attachments: [{ id: 'a2', name: 'Lista_Adelantos.xlsx', url: '#', type: 'xlsx', size: '45KB' }],
     comments: []
+  }
+];
+
+export const MOCK_TEMPLATES: TicketTemplate[] = [
+  {
+    ticketType: TicketType.NEW_HIRE,
+    requirements: [
+      { id: 'req-1', text: 'Adjuntar Constancia de Alta T-Registro (PDF)', type: RequirementType.FILE_UPLOAD, required: true },
+      { id: 'req-2', text: 'Confirmar creación de cuenta de correo', type: RequirementType.CHECKBOX, required: true },
+      { id: 'req-3', text: 'Contrato firmado archivado', type: RequirementType.CHECKBOX, required: true }
+    ]
+  },
+  {
+    ticketType: TicketType.INCIDENT,
+    requirements: [
+      { id: 'req-4', text: 'Confirmar corrección en sistema de nómina', type: RequirementType.CHECKBOX, required: true },
+      { id: 'req-5', text: 'Adjuntar correo de conformidad del usuario', type: RequirementType.FILE_UPLOAD, required: false }
+    ]
   }
 ];
 

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Company } from '../types';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, AlertCircle, CheckCircle2, Clock, Info, DollarSign, Building2, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, AlertCircle, CheckCircle2, Clock, Info, DollarSign, Building2, FileText, Plus, X, Save } from 'lucide-react';
 
 interface FiscalCalendarProps {
   company: Company;
@@ -17,14 +17,27 @@ interface CalendarEvent {
   status: 'PENDING' | 'COMPLETED' | 'OVERDUE' | 'WARNING';
   description: string;
   amount?: string;
+  isCustom?: boolean;
 }
 
 export const FiscalCalendar: React.FC<FiscalCalendarProps> = ({ company }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  
+  // State for events
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [customEvents, setCustomEvents] = useState<CalendarEvent[]>([]);
 
-  // Generar eventos automáticamente basado en la empresa y el mes actual
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newEventData, setNewEventData] = useState({
+    title: '',
+    type: 'INTERNAL' as EventType,
+    description: '',
+    amount: ''
+  });
+
+  // Generar eventos automáticamente + mezclar con personalizados
   useEffect(() => {
     const generateEvents = () => {
       const year = currentDate.getFullYear();
@@ -33,13 +46,12 @@ export const FiscalCalendar: React.FC<FiscalCalendarProps> = ({ company }) => {
       const lastDigit = parseInt(company.taxId.charAt(company.taxId.length - 1)) || 0;
 
       // 1. Declaración de Impuestos (PLAME/SUNAT)
-      // Lógica simulada: Vencimiento día 14 + último dígito del RUC
       const taxDay = 14 + lastDigit;
       const taxDate = new Date(year, month, taxDay);
       const today = new Date();
 
       generatedEvents.push({
-        id: 'tax-1',
+        id: `tax-${month}-${year}`,
         date: taxDate,
         title: 'Declaración Mensual (PLAME)',
         type: 'TAX',
@@ -48,10 +60,10 @@ export const FiscalCalendar: React.FC<FiscalCalendarProps> = ({ company }) => {
         amount: 'S/ 12,450.00 (Est.)'
       });
 
-      // 2. Pago AFP (5to día útil aprox - simulado al día 5 del mes siguiente al devengue, aqui lo ponemos en el mes actual para demo)
+      // 2. Pago AFP
       const afpDate = new Date(year, month, 5);
       generatedEvents.push({
-        id: 'legal-1',
+        id: `legal-${month}-${year}`,
         date: afpDate,
         title: 'Pago de AFPs',
         type: 'LEGAL',
@@ -60,10 +72,10 @@ export const FiscalCalendar: React.FC<FiscalCalendarProps> = ({ company }) => {
         amount: 'S/ 8,320.00'
       });
 
-      // 3. Quincena (Adelanto)
+      // 3. Quincena
       const quincenaDate = new Date(year, month, 15);
       generatedEvents.push({
-        id: 'pay-1',
+        id: `pay1-${month}-${year}`,
         date: quincenaDate,
         title: 'Pago de Adelanto (Quincena)',
         type: 'PAYMENT',
@@ -71,10 +83,10 @@ export const FiscalCalendar: React.FC<FiscalCalendarProps> = ({ company }) => {
         description: 'Transferencia de adelantos de sueldo al 40%.',
       });
 
-      // 4. Cierre de Novedades (Interno)
+      // 4. Cierre de Novedades
       const cierreDate = new Date(year, month, 20);
       generatedEvents.push({
-        id: 'int-1',
+        id: `int1-${month}-${year}`,
         date: cierreDate,
         title: 'Cierre de Tareos y Novedades',
         type: 'INTERNAL',
@@ -83,10 +95,10 @@ export const FiscalCalendar: React.FC<FiscalCalendarProps> = ({ company }) => {
       });
 
       // 5. Pago Fin de Mes
-      const lastDay = new Date(year, month + 1, 0).getDate(); // Último día del mes
-      const payDate = new Date(year, month, lastDay === 31 || lastDay === 30 ? 30 : lastDay); // Usualmente se paga el 30
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      const payDate = new Date(year, month, lastDay === 31 || lastDay === 30 ? 30 : lastDay);
       generatedEvents.push({
-        id: 'pay-2',
+        id: `pay2-${month}-${year}`,
         date: payDate,
         title: 'Pago de Haberes Mensual',
         type: 'PAYMENT',
@@ -95,11 +107,36 @@ export const FiscalCalendar: React.FC<FiscalCalendarProps> = ({ company }) => {
         amount: 'S/ 45,200.00 (Est.)'
       });
 
-      setEvents(generatedEvents);
+      // Combinar generados con personalizados
+      setEvents([...generatedEvents, ...customEvents]);
     };
 
     generateEvents();
-  }, [currentDate, company]);
+  }, [currentDate, company, customEvents]);
+
+  const handleSaveEvent = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEventData.title) return;
+
+    const newEvent: CalendarEvent = {
+      id: `custom-${Date.now()}`,
+      date: selectedDate, // Use currently selected date
+      title: newEventData.title,
+      type: newEventData.type,
+      description: newEventData.description,
+      amount: newEventData.amount,
+      status: 'PENDING',
+      isCustom: true
+    };
+
+    setCustomEvents([...customEvents, newEvent]);
+    setIsModalOpen(false);
+    setNewEventData({ title: '', type: 'INTERNAL', description: '', amount: '' });
+  };
+
+  const openAddModal = () => {
+    setIsModalOpen(true);
+  };
 
   // Navegación de mes
   const nextMonth = () => {
@@ -114,7 +151,6 @@ export const FiscalCalendar: React.FC<FiscalCalendarProps> = ({ company }) => {
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay(); // 0 = Sunday
   
-  // Ajustar para que la semana empiece Lunes (opcional, aqui standard Domingo)
   const days = [];
   for (let i = 0; i < firstDayOfMonth; i++) {
     days.push(<div key={`empty-${i}`} className="h-24 bg-slate-50/50 border-b border-r border-slate-100"></div>);
@@ -122,7 +158,7 @@ export const FiscalCalendar: React.FC<FiscalCalendarProps> = ({ company }) => {
 
   for (let day = 1; day <= daysInMonth; day++) {
     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-    const dayEvents = events.filter(e => e.date.getDate() === day);
+    const dayEvents = events.filter(e => e.date.getDate() === day && e.date.getMonth() === date.getMonth() && e.date.getFullYear() === date.getFullYear());
     const isToday = new Date().toDateString() === date.toDateString();
     const isSelected = selectedDate.toDateString() === date.toDateString();
 
@@ -140,7 +176,7 @@ export const FiscalCalendar: React.FC<FiscalCalendarProps> = ({ company }) => {
         </span>
         
         <div className="mt-1 space-y-1 overflow-hidden">
-          {dayEvents.map(evt => (
+          {dayEvents.slice(0, 3).map(evt => (
             <div 
               key={evt.id} 
               className={`text-[10px] px-1.5 py-0.5 rounded truncate border ${
@@ -153,6 +189,9 @@ export const FiscalCalendar: React.FC<FiscalCalendarProps> = ({ company }) => {
               {evt.title}
             </div>
           ))}
+          {dayEvents.length > 3 && (
+            <div className="text-[9px] text-slate-400 pl-1">+ {dayEvents.length - 3} más</div>
+          )}
         </div>
       </div>
     );
@@ -173,7 +212,83 @@ export const FiscalCalendar: React.FC<FiscalCalendarProps> = ({ company }) => {
   const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div className="flex h-[calc(100vh-7rem)] bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative">
+      
+      {/* Modal de Nuevo Evento */}
+      {isModalOpen && (
+        <div className="absolute inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h3 className="font-bold text-slate-800">Nuevo Evento / Recordatorio</h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 bg-indigo-50 border-b border-indigo-100">
+              <p className="text-xs text-indigo-800 flex items-center gap-2">
+                <CalendarIcon size={14} />
+                Para el día: <span className="font-bold">{selectedDate.toLocaleDateString()}</span>
+              </p>
+            </div>
+            <form onSubmit={handleSaveEvent} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Título</label>
+                <input 
+                  type="text" 
+                  required
+                  value={newEventData.title}
+                  onChange={(e) => setNewEventData({...newEventData, title: e.target.value})}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                  placeholder="Ej: Enviar reporte de provisiones"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Tipo de Evento</label>
+                <select 
+                  value={newEventData.type}
+                  onChange={(e) => setNewEventData({...newEventData, type: e.target.value as EventType})}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                >
+                  <option value="INTERNAL">Proceso Interno</option>
+                  <option value="PAYMENT">Pago</option>
+                  <option value="TAX">Impuesto / Fiscal</option>
+                  <option value="LEGAL">Legal / AFP</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Monto Estimado (Opcional)</label>
+                <input 
+                  type="text" 
+                  value={newEventData.amount}
+                  onChange={(e) => setNewEventData({...newEventData, amount: e.target.value})}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                  placeholder="Ej: S/ 5,000.00"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Descripción</label>
+                <textarea 
+                  rows={3}
+                  value={newEventData.description}
+                  onChange={(e) => setNewEventData({...newEventData, description: e.target.value})}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                  placeholder="Detalles adicionales..."
+                />
+              </div>
+              <div className="pt-2">
+                <button 
+                  type="submit"
+                  className="w-full py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition flex items-center justify-center gap-2"
+                >
+                  <Save size={16} />
+                  Guardar Recordatorio
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Main Calendar Area */}
       <div className="flex-1 flex flex-col">
         <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
@@ -216,10 +331,19 @@ export const FiscalCalendar: React.FC<FiscalCalendarProps> = ({ company }) => {
 
       {/* Side Panel for Details */}
       <div className="w-80 border-l border-slate-200 bg-white flex flex-col">
-          <div className="p-6 border-b border-slate-100">
-              <h3 className="text-3xl font-bold text-slate-800">{selectedDate.getDate()}</h3>
-              <p className="text-slate-500 uppercase text-sm font-medium">{months[selectedDate.getMonth()]} {selectedDate.getFullYear()}</p>
-              <p className="text-xs text-slate-400 mt-1">{['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][selectedDate.getDay()]}</p>
+          <div className="p-6 border-b border-slate-100 flex justify-between items-start">
+             <div>
+               <h3 className="text-3xl font-bold text-slate-800">{selectedDate.getDate()}</h3>
+               <p className="text-slate-500 uppercase text-sm font-medium">{months[selectedDate.getMonth()]} {selectedDate.getFullYear()}</p>
+               <p className="text-xs text-slate-400 mt-1">{['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][selectedDate.getDay()]}</p>
+             </div>
+             <button 
+                onClick={openAddModal}
+                className="p-2 bg-indigo-50 text-indigo-600 rounded-full hover:bg-indigo-100 transition" 
+                title="Agregar Evento"
+             >
+                <Plus size={20} />
+             </button>
           </div>
           
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -227,7 +351,12 @@ export const FiscalCalendar: React.FC<FiscalCalendarProps> = ({ company }) => {
                   <div className="text-center py-10 text-slate-400">
                       <CheckCircle2 size={40} className="mx-auto mb-2 opacity-20" />
                       <p className="text-sm">No hay eventos programados para este día.</p>
-                      <button className="mt-4 text-indigo-600 text-xs font-medium hover:underline">+ Agregar recordatorio</button>
+                      <button 
+                        onClick={openAddModal}
+                        className="mt-4 text-indigo-600 text-xs font-medium hover:underline"
+                      >
+                        + Agregar recordatorio
+                      </button>
                   </div>
               ) : (
                   selectedEvents.map(evt => {
@@ -250,6 +379,11 @@ export const FiscalCalendar: React.FC<FiscalCalendarProps> = ({ company }) => {
                                       <DollarSign size={12} className="text-slate-400" />
                                       {evt.amount}
                                   </div>
+                              )}
+                              {evt.isCustom && (
+                                <div className="mt-2 pt-2 border-t border-slate-50 text-[10px] text-slate-400 italic text-right">
+                                  Creado manualmente
+                                </div>
                               )}
                           </div>
                       );

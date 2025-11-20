@@ -1,16 +1,18 @@
 
 import React, { useState } from 'react';
-import { User, Company } from '../types';
-import { Users, Building2, Settings, Shield, Plus, MoreHorizontal, Search, Mail, ToggleLeft, ToggleRight, X, Save } from 'lucide-react';
+import { User, Company, TicketTemplate, TicketType, RequirementType } from '../types';
+import { Users, Building2, Settings, Shield, Plus, MoreHorizontal, Search, Mail, ToggleLeft, ToggleRight, X, Save, FileText, Trash2, CheckSquare, Upload } from 'lucide-react';
 
 interface AdminPanelProps {
   users: User[];
   companies: Company[];
+  templates?: TicketTemplate[];
   onAddCompany?: (name: string, taxId: string) => void;
+  onUpdateTemplates?: (templates: TicketTemplate[]) => void;
 }
 
-export const AdminPanel: React.FC<AdminPanelProps> = ({ users, companies, onAddCompany }) => {
-  const [activeSection, setActiveSection] = useState<'users' | 'companies' | 'settings'>('users');
+export const AdminPanel: React.FC<AdminPanelProps> = ({ users, companies, templates = [], onAddCompany, onUpdateTemplates }) => {
+  const [activeSection, setActiveSection] = useState<'users' | 'companies' | 'settings' | 'workflows'>('users');
   const [aiEnabled, setAiEnabled] = useState(true);
   const [emailNotifs, setEmailNotifs] = useState(true);
 
@@ -18,12 +20,72 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, companies, onAddC
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
   const [newCompanyData, setNewCompanyData] = useState({ name: '', taxId: '' });
 
+  // Workflows State
+  const [selectedTemplateType, setSelectedTemplateType] = useState<TicketType>(TicketType.NEW_HIRE);
+  const [requirementsBuffer, setRequirementsBuffer] = useState<TicketTemplate[]>(JSON.parse(JSON.stringify(templates)));
+
   const handleCreateCompany = (e: React.FormEvent) => {
     e.preventDefault();
     if (onAddCompany && newCompanyData.name && newCompanyData.taxId) {
       onAddCompany(newCompanyData.name, newCompanyData.taxId);
       setNewCompanyData({ name: '', taxId: '' });
       setIsCompanyModalOpen(false);
+    }
+  };
+
+  const getCurrentTemplate = () => {
+    let template = requirementsBuffer.find(t => t.ticketType === selectedTemplateType);
+    if (!template) {
+      // Create if doesn't exist in buffer
+      const newTemplate: TicketTemplate = { ticketType: selectedTemplateType, requirements: [] };
+      setRequirementsBuffer([...requirementsBuffer, newTemplate]);
+      return newTemplate;
+    }
+    return template;
+  };
+
+  const handleAddRequirement = () => {
+    const newBuffer = [...requirementsBuffer];
+    const templateIndex = newBuffer.findIndex(t => t.ticketType === selectedTemplateType);
+    if (templateIndex >= 0) {
+      newBuffer[templateIndex].requirements.push({
+        id: `req-${Date.now()}`,
+        text: 'Nuevo Requisito',
+        type: RequirementType.CHECKBOX,
+        required: true
+      });
+      setRequirementsBuffer(newBuffer);
+    }
+  };
+
+  const handleUpdateRequirement = (reqId: string, field: string, value: any) => {
+    const newBuffer = [...requirementsBuffer];
+    const templateIndex = newBuffer.findIndex(t => t.ticketType === selectedTemplateType);
+    if (templateIndex >= 0) {
+      const reqIndex = newBuffer[templateIndex].requirements.findIndex(r => r.id === reqId);
+      if (reqIndex >= 0) {
+        newBuffer[templateIndex].requirements[reqIndex] = {
+          ...newBuffer[templateIndex].requirements[reqIndex],
+          [field]: value
+        };
+        setRequirementsBuffer(newBuffer);
+      }
+    }
+  };
+
+  const handleRemoveRequirement = (reqId: string) => {
+    const newBuffer = [...requirementsBuffer];
+    const templateIndex = newBuffer.findIndex(t => t.ticketType === selectedTemplateType);
+    if (templateIndex >= 0) {
+      newBuffer[templateIndex].requirements = newBuffer[templateIndex].requirements.filter(r => r.id !== reqId);
+      setRequirementsBuffer(newBuffer);
+    }
+  };
+
+  const handleSaveTemplates = () => {
+    if (onUpdateTemplates) {
+      onUpdateTemplates(requirementsBuffer);
+      alert('Plantillas actualizadas correctamente');
     }
   };
 
@@ -90,21 +152,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, companies, onAddC
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Administración del Sistema</h2>
-          <p className="text-slate-500 mt-1">Gestione usuarios, empresas y configuraciones globales.</p>
+          <p className="text-slate-500 mt-1">Gestione usuarios, empresas, flujos y configuraciones globales.</p>
         </div>
         <button 
           onClick={() => {
             if (activeSection === 'companies') setIsCompanyModalOpen(true);
+            if (activeSection === 'workflows') handleSaveTemplates();
           }}
-          className={`bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition flex items-center gap-2 text-sm font-medium shadow-sm ${activeSection === 'settings' ? 'hidden' : ''}`}
+          className={`bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition flex items-center gap-2 text-sm font-medium shadow-sm ${activeSection === 'settings' || activeSection === 'users' ? 'hidden' : ''}`}
         >
-          <Plus size={18} />
-          {activeSection === 'users' ? 'Nuevo Usuario' : 'Nueva Empresa'}
+          {activeSection === 'workflows' ? <Save size={18} /> : <Plus size={18} />}
+          {activeSection === 'users' ? 'Nuevo Usuario' : activeSection === 'workflows' ? 'Guardar Cambios' : 'Nueva Empresa'}
         </button>
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex border-b border-slate-200 mb-6">
+      <div className="flex border-b border-slate-200 mb-6 overflow-x-auto">
         <button
           onClick={() => setActiveSection('users')}
           className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
@@ -112,7 +175,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, companies, onAddC
           }`}
         >
           <Users size={18} />
-          Usuarios y Permisos
+          Usuarios
         </button>
         <button
           onClick={() => setActiveSection('companies')}
@@ -121,7 +184,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, companies, onAddC
           }`}
         >
           <Building2 size={18} />
-          Razones Sociales
+          Empresas
+        </button>
+        <button
+          onClick={() => setActiveSection('workflows')}
+          className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            activeSection === 'workflows' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <FileText size={18} />
+          Flujos de Resolución
         </button>
         <button
           onClick={() => setActiveSection('settings')}
@@ -130,7 +202,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, companies, onAddC
           }`}
         >
           <Settings size={18} />
-          Configuración General
+          Configuración
         </button>
       </div>
 
@@ -244,6 +316,96 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, companies, onAddC
               </div>
               <span className="font-medium">Registrar Nueva Empresa</span>
             </button>
+          </div>
+        )}
+
+        {/* WORKFLOWS SECTION */}
+        {activeSection === 'workflows' && (
+          <div className="p-6">
+            <div className="flex flex-col md:flex-row gap-6">
+              <div className="w-full md:w-1/4">
+                <h3 className="text-sm font-bold text-slate-800 mb-3 uppercase tracking-wider">Tipo de Ticket</h3>
+                <div className="space-y-1">
+                  {Object.values(TicketType).map(type => (
+                    <button
+                      key={type}
+                      onClick={() => setSelectedTemplateType(type)}
+                      className={`w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition ${
+                        selectedTemplateType === type 
+                          ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' 
+                          : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+                      }`}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="flex-1 bg-slate-50 rounded-xl border border-slate-200 p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800">Plantilla de Resolución: {selectedTemplateType}</h3>
+                    <p className="text-sm text-slate-500">Defina los requisitos obligatorios para cerrar este tipo de ticket.</p>
+                  </div>
+                  <button 
+                    onClick={handleAddRequirement}
+                    className="px-3 py-1.5 bg-white border border-slate-300 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-100 flex items-center gap-2"
+                  >
+                    <Plus size={14} /> Agregar Requisito
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {getCurrentTemplate().requirements.length === 0 ? (
+                    <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-lg">
+                      <p className="text-slate-400 text-sm">No hay requisitos configurados.</p>
+                    </div>
+                  ) : (
+                    getCurrentTemplate().requirements.map(req => (
+                      <div key={req.id} className="bg-white p-3 rounded-lg border border-slate-200 flex items-start gap-3 shadow-sm">
+                        <div className="mt-2">
+                          {req.type === RequirementType.CHECKBOX ? <CheckSquare size={16} className="text-slate-400" /> : <Upload size={16} className="text-slate-400" />}
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <input 
+                            type="text" 
+                            value={req.text}
+                            onChange={(e) => handleUpdateRequirement(req.id, 'text', e.target.value)}
+                            className="w-full text-sm font-medium text-slate-800 border-b border-slate-100 pb-1 outline-none focus:border-indigo-500"
+                            placeholder="Descripción del requisito..."
+                          />
+                          <div className="flex gap-4 items-center text-xs">
+                            <select 
+                              value={req.type}
+                              onChange={(e) => handleUpdateRequirement(req.id, 'type', e.target.value)}
+                              className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-slate-600"
+                            >
+                              <option value={RequirementType.CHECKBOX}>Check de Verificación</option>
+                              <option value={RequirementType.FILE_UPLOAD}>Subida de Archivo</option>
+                            </select>
+                            <label className="flex items-center gap-1.5 text-slate-600 cursor-pointer">
+                              <input 
+                                type="checkbox" 
+                                checked={req.required}
+                                onChange={(e) => handleUpdateRequirement(req.id, 'required', e.target.checked)}
+                              />
+                              Obligatorio
+                            </label>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => handleRemoveRequirement(req.id)}
+                          className="text-slate-300 hover:text-red-500 p-1"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

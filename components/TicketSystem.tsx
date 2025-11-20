@@ -1,18 +1,21 @@
+
 import React, { useState } from 'react';
-import { Ticket, TicketType, Priority, Status, User, Attachment } from '../types';
-import { Paperclip, Send, Bot, MoreVertical, FileText, AlertCircle, CheckCircle2, MessageSquare, X, Save } from 'lucide-react';
+import { Ticket, TicketType, Priority, Status, User, Attachment, TicketTemplate, RequirementType, ResolutionEvidence } from '../types';
+import { Paperclip, Send, Bot, MoreVertical, FileText, AlertCircle, CheckCircle2, MessageSquare, X, Save, CheckSquare, Upload, ShieldCheck } from 'lucide-react';
 import { analyzeTicketWithGemini } from '../services/geminiService';
 
 interface TicketSystemProps {
   tickets: Ticket[];
+  templates?: TicketTemplate[];
   currentUser: User;
   onAddComment: (ticketId: string, text: string) => void;
   onUpdateStatus: (ticketId: string, status: Status) => void;
+  onResolveTicket: (ticketId: string, evidence: ResolutionEvidence[]) => void;
   onTicketUpdate: (updatedTicket: Ticket) => void;
   onCreateTicket: (ticket: Omit<Ticket, 'id' | 'createdAt' | 'updatedAt' | 'comments' | 'attachments' | 'status' | 'assignedTo'>) => void;
 }
 
-export const TicketSystem: React.FC<TicketSystemProps> = ({ tickets, currentUser, onAddComment, onUpdateStatus, onTicketUpdate, onCreateTicket }) => {
+export const TicketSystem: React.FC<TicketSystemProps> = ({ tickets, templates = [], currentUser, onAddComment, onUpdateStatus, onResolveTicket, onTicketUpdate, onCreateTicket }) => {
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(tickets[0]?.id || null);
   const [commentInput, setCommentInput] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -26,6 +29,10 @@ export const TicketSystem: React.FC<TicketSystemProps> = ({ tickets, currentUser
     priority: Priority.MEDIUM,
     companyId: ''
   });
+
+  // Resolution Modal State
+  const [isResolving, setIsResolving] = useState(false);
+  const [resolutionDraft, setResolutionDraft] = useState<ResolutionEvidence[]>([]);
 
   const selectedTicket = tickets.find(t => t.id === selectedTicketId);
 
@@ -53,7 +60,7 @@ export const TicketSystem: React.FC<TicketSystemProps> = ({ tickets, currentUser
       description: '',
       type: TicketType.INCIDENT,
       priority: Priority.MEDIUM,
-      companyId: tickets[0]?.companyId || '' // Default to first ticket's company or handle via props if needed strictly
+      companyId: tickets[0]?.companyId || '' 
     });
   };
 
@@ -71,8 +78,85 @@ export const TicketSystem: React.FC<TicketSystemProps> = ({ tickets, currentUser
     });
 
     setIsCreating(false);
-    // Optionally select the new ticket (handled via useEffect in parent or simple reset here)
   };
+
+  // --- RESOLUTION LOGIC ---
+
+  const handleAttemptStatusChange = (newStatus: Status) => {
+    if (!selectedTicket) return;
+
+    if (newStatus === Status.COMPLETED) {
+      // Check if there is a template for this ticket type
+      const template = templates.find(t => t.ticketType === selectedTicket.type);
+      
+      if (template && template.requirements.length > 0) {
+        // Initialize draft based on template
+        const initialDraft: ResolutionEvidence[] = template.requirements.map(req => ({
+          requirementId: req.id,
+          requirementText: req.text,
+          resolvedAt: new Date(),
+          resolvedBy: currentUser.id,
+          isChecked: false,
+          file: undefined
+        }));
+        setResolutionDraft(initialDraft);
+        setIsResolving(true);
+        return;
+      }
+    }
+
+    // If no template or not completing, just update status
+    onUpdateStatus(selectedTicket.id, newStatus);
+  };
+
+  const handleResolutionChange = (reqId: string, field: 'isChecked' | 'file', value: any) => {
+    setResolutionDraft(prev => prev.map(item => {
+      if (item.requirementId === reqId) {
+        return { ...item, [field]: value };
+      }
+      return item;
+    }));
+  };
+
+  const handleFileUpload = (reqId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const attachment: Attachment = {
+        id: `ev-${Date.now()}`,
+        name: file.name,
+        size: `${(file.size / 1024).toFixed(1)} KB`,
+        type: file.name.split('.').pop() || 'file',
+        url: '#',
+        uploadedAt: new Date(),
+        uploadedBy: currentUser.id
+      };
+      handleResolutionChange(reqId, 'file', attachment);
+    }
+  };
+
+  const submitResolution = () => {
+    if (!selectedTicket) return;
+    onResolveTicket(selectedTicket.id, resolutionDraft);
+    setIsResolving(false);
+  };
+
+  const isResolutionValid = () => {
+    if (!selectedTicket) return false;
+    const template = templates.find(t => t.ticketType === selectedTicket.type);
+    if (!template) return true;
+
+    return template.requirements.every(req => {
+      if (!req.required) return true;
+      const draftItem = resolutionDraft.find(d => d.requirementId === req.id);
+      if (!draftItem) return false;
+      
+      if (req.type === RequirementType.CHECKBOX) return draftItem.isChecked;
+      if (req.type === RequirementType.FILE_UPLOAD) return !!draftItem.file;
+      return false;
+    });
+  };
+
+  // --- RENDER HELPERS ---
 
   const getPriorityColor = (priority: Priority) => {
     switch (priority) {
@@ -85,7 +169,88 @@ export const TicketSystem: React.FC<TicketSystemProps> = ({ tickets, currentUser
   };
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div className="flex h-[calc(100vh-7rem)] bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative">
+      
+      {/* Resolution Modal */}
+      {isResolving && selectedTicket && (
+        <div className="absolute inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+               <div>
+                 <h3 className="font-bold text-slate-800 text-lg">Resolución de Ticket</h3>
+                 <p className="text-xs text-slate-500">Complete los requisitos para cerrar: {selectedTicket.title}</p>
+               </div>
+               <button onClick={() => setIsResolving(false)} className="text-slate-400 hover:text-slate-600">
+                 <X size={20} />
+               </button>
+            </div>
+            <div className="p-6 overflow-y-auto space-y-5">
+              {templates.find(t => t.ticketType === selectedTicket.type)?.requirements.map((req) => {
+                const draftState = resolutionDraft.find(d => d.requirementId === req.id);
+                return (
+                  <div key={req.id} className="border border-slate-200 rounded-lg p-4 bg-white">
+                    <div className="flex justify-between mb-2">
+                      <p className="font-medium text-sm text-slate-800">{req.text}</p>
+                      {req.required && <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded border border-red-100 h-fit">Requerido</span>}
+                    </div>
+
+                    {req.type === RequirementType.CHECKBOX ? (
+                      <label className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-2 rounded -ml-2">
+                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${draftState?.isChecked ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-white border-slate-300'}`}>
+                          {draftState?.isChecked && <CheckSquare size={14} />}
+                        </div>
+                        <input 
+                          type="checkbox" 
+                          className="hidden"
+                          checked={!!draftState?.isChecked}
+                          onChange={(e) => handleResolutionChange(req.id, 'isChecked', e.target.checked)}
+                        />
+                        <span className="text-sm text-slate-600">Confirmar cumplimiento</span>
+                      </label>
+                    ) : (
+                      <div className="mt-2">
+                        {draftState?.file ? (
+                          <div className="flex items-center justify-between bg-indigo-50 border border-indigo-100 p-2 rounded-lg">
+                             <div className="flex items-center gap-2 overflow-hidden">
+                               <FileText size={16} className="text-indigo-500 flex-shrink-0" />
+                               <span className="text-xs font-medium text-indigo-900 truncate">{draftState.file.name}</span>
+                             </div>
+                             <button onClick={() => handleResolutionChange(req.id, 'file', undefined)} className="text-slate-400 hover:text-red-500">
+                               <X size={14} />
+                             </button>
+                          </div>
+                        ) : (
+                          <label className="flex items-center justify-center w-full border-2 border-dashed border-slate-200 rounded-lg p-3 cursor-pointer hover:border-indigo-300 hover:bg-slate-50 transition group">
+                            <div className="flex items-center gap-2 text-slate-400 group-hover:text-indigo-500">
+                              <Upload size={16} />
+                              <span className="text-xs font-medium">Adjuntar documento</span>
+                            </div>
+                            <input type="file" className="hidden" onChange={(e) => handleFileUpload(req.id, e)} />
+                          </label>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+              <button onClick={() => setIsResolving(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-200 rounded-lg transition">
+                Cancelar
+              </button>
+              <button 
+                onClick={submitResolution}
+                disabled={!isResolutionValid()}
+                className="px-6 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ShieldCheck size={18} />
+                Finalizar Ticket
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Ticket List */}
       <div className="w-full md:w-1/3 lg:w-1/4 border-r border-slate-200 flex flex-col">
         <div className="p-4 border-b border-slate-200 bg-slate-50">
@@ -224,7 +389,7 @@ export const TicketSystem: React.FC<TicketSystemProps> = ({ tickets, currentUser
             <div className="flex items-center gap-2">
               <select 
                 value={selectedTicket.status}
-                onChange={(e) => onUpdateStatus(selectedTicket.id, e.target.value as Status)}
+                onChange={(e) => handleAttemptStatusChange(e.target.value as Status)}
                 className="text-sm border border-slate-300 rounded-md p-1.5 bg-white"
               >
                 <option value={Status.PENDING}>Pendiente</option>
@@ -258,6 +423,30 @@ export const TicketSystem: React.FC<TicketSystemProps> = ({ tickets, currentUser
                 </div>
               )}
             </div>
+
+            {/* Resolution Evidence Card (If Completed) */}
+            {selectedTicket.status === Status.COMPLETED && selectedTicket.resolutionEvidence && (
+                <div className="bg-emerald-50/50 p-5 rounded-xl shadow-sm border border-emerald-100">
+                    <h4 className="text-sm font-bold text-emerald-800 mb-3 flex items-center gap-2">
+                        <ShieldCheck size={18} /> Resolución Verificada
+                    </h4>
+                    <div className="space-y-3">
+                        {selectedTicket.resolutionEvidence.map((ev, idx) => (
+                            <div key={idx} className="flex items-start gap-2 text-sm text-slate-700">
+                                <CheckCircle2 size={16} className="text-emerald-500 mt-0.5 flex-shrink-0" />
+                                <div>
+                                    <p className="font-medium">{ev.requirementText}</p>
+                                    {ev.file && (
+                                        <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                                            <FileText size={12} /> {ev.file.name}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* AI Analysis Card */}
             <div className="bg-gradient-to-br from-indigo-50 to-white p-5 rounded-xl shadow-sm border border-indigo-100">
