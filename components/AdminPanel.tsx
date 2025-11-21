@@ -7,11 +7,21 @@ interface AdminPanelProps {
   users: User[];
   companies: Company[];
   templates?: TicketTemplate[];
+  ticketTypes?: string[];
   onAddCompany?: (name: string, taxId: string) => void;
   onUpdateTemplates?: (templates: TicketTemplate[]) => void;
+  onAddTicketType?: (newType: string) => void;
 }
 
-export const AdminPanel: React.FC<AdminPanelProps> = ({ users, companies, templates = [], onAddCompany, onUpdateTemplates }) => {
+export const AdminPanel: React.FC<AdminPanelProps> = ({ 
+  users, 
+  companies, 
+  templates = [], 
+  ticketTypes = [], 
+  onAddCompany, 
+  onUpdateTemplates,
+  onAddTicketType
+}) => {
   const [activeSection, setActiveSection] = useState<'users' | 'companies' | 'settings' | 'workflows'>('users');
   const [aiEnabled, setAiEnabled] = useState(true);
   const [emailNotifs, setEmailNotifs] = useState(true);
@@ -21,8 +31,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, companies, templa
   const [newCompanyData, setNewCompanyData] = useState({ name: '', taxId: '' });
 
   // Workflows State
-  const [selectedTemplateType, setSelectedTemplateType] = useState<TicketType>(TicketType.NEW_HIRE);
+  const [selectedTemplateType, setSelectedTemplateType] = useState<string>(ticketTypes[0] || 'Incidencia');
   const [requirementsBuffer, setRequirementsBuffer] = useState<TicketTemplate[]>(JSON.parse(JSON.stringify(templates)));
+  
+  // New Ticket Type State
+  const [isAddingType, setIsAddingType] = useState(false);
+  const [newTypeName, setNewTypeName] = useState('');
 
   const handleCreateCompany = (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,6 +44,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, companies, templa
       onAddCompany(newCompanyData.name, newCompanyData.taxId);
       setNewCompanyData({ name: '', taxId: '' });
       setIsCompanyModalOpen(false);
+    }
+  };
+
+  const handleCreateTicketType = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (onAddTicketType && newTypeName.trim()) {
+      onAddTicketType(newTypeName.trim());
+      setNewTypeName('');
+      setIsAddingType(false);
+      setSelectedTemplateType(newTypeName.trim());
     }
   };
 
@@ -55,6 +79,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, companies, templa
         required: true
       });
       setRequirementsBuffer(newBuffer);
+    } else {
+      // If template didn't exist in buffer yet (e.g. new type just selected)
+      const newTemplate: TicketTemplate = {
+         ticketType: selectedTemplateType,
+         requirements: [{
+            id: `req-${Date.now()}`,
+            text: 'Nuevo Requisito',
+            type: RequirementType.CHECKBOX,
+            required: true
+         }]
+      };
+      setRequirementsBuffer([...newBuffer, newTemplate]);
     }
   };
 
@@ -325,8 +361,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, companies, templa
             <div className="flex flex-col md:flex-row gap-6">
               <div className="w-full md:w-1/4">
                 <h3 className="text-sm font-bold text-slate-800 mb-3 uppercase tracking-wider">Tipo de Ticket</h3>
-                <div className="space-y-1">
-                  {Object.values(TicketType).map(type => (
+                <div className="space-y-1 mb-4">
+                  {ticketTypes.map(type => (
                     <button
                       key={type}
                       onClick={() => setSelectedTemplateType(type)}
@@ -340,6 +376,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, companies, templa
                     </button>
                   ))}
                 </div>
+                
+                {isAddingType ? (
+                  <form onSubmit={handleCreateTicketType} className="flex items-center gap-2">
+                    <input 
+                      type="text" 
+                      autoFocus
+                      value={newTypeName}
+                      onChange={(e) => setNewTypeName(e.target.value)}
+                      className="w-full text-sm border border-indigo-300 rounded px-2 py-1 outline-none"
+                      placeholder="Nombre..."
+                    />
+                    <button type="submit" className="text-emerald-600 hover:text-emerald-700"><CheckSquare size={18}/></button>
+                    <button type="button" onClick={() => setIsAddingType(false)} className="text-red-500 hover:text-red-600"><X size={18}/></button>
+                  </form>
+                ) : (
+                  <button 
+                    onClick={() => setIsAddingType(true)}
+                    className="w-full py-2 border border-dashed border-slate-300 rounded text-slate-500 hover:text-indigo-600 hover:border-indigo-300 text-xs flex items-center justify-center gap-2 transition"
+                  >
+                    <Plus size={14} /> Nuevo Tipo
+                  </button>
+                )}
               </div>
               
               <div className="flex-1 bg-slate-50 rounded-xl border border-slate-200 p-6">

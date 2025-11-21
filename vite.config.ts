@@ -1,21 +1,18 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, (process as any).cwd(), '');
   
   return {
     plugins: [react()],
-    base: './', // Importante para que funcione en cualquier subdirectorio o servidor
-    define: {
-      // Esto permite que el código que usa process.env siga funcionando
-      'process.env.API_KEY': JSON.stringify(env.API_KEY)
+    server: {
+      host: true // Permite acceso externo (0.0.0.0)
     },
-    build: {
-      outDir: 'dist',
-      assetsDir: 'assets',
-      emptyOutDir: true,
+    define: {
+      'process.env.API_KEY': JSON.stringify(env.API_KEY),
+      // Polyfill para evitar errores si alguna librería accede a process.env
+      'process.env': JSON.stringify(env)
     }
   };
 });

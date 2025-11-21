@@ -13,14 +13,17 @@ export enum Priority {
   CRITICAL = 'CRITICAL'
 }
 
-export enum TicketType {
-  INCIDENT = 'Incidencia',
-  NEW_HIRE = 'Alta',
-  TERMINATION = 'Baja',
-  SICK_LEAVE = 'Descanso Médico',
-  OVERTIME = 'Horas Extras',
-  ADVANCE_PAYMENT = 'Adelanto Sueldo'
-}
+// Changed from enum to const object + string type to allow dynamic values
+export const TicketType = {
+  INCIDENT: 'Incidencia',
+  NEW_HIRE: 'Alta',
+  TERMINATION: 'Baja',
+  SICK_LEAVE: 'Descanso Médico',
+  OVERTIME: 'Horas Extras',
+  ADVANCE_PAYMENT: 'Adelanto Sueldo'
+} as const;
+
+export type TicketType = typeof TicketType[keyof typeof TicketType] | string;
 
 export enum UserRole {
   ADMIN = 'ADMIN',

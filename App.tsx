@@ -10,7 +10,7 @@ import { AuditLog } from './components/AuditLog';
 import { GlobalOverview } from './components/GlobalOverview';
 import { FiscalCalendar } from './components/FiscalCalendar';
 import { MOCK_COMPANIES, MOCK_USERS, INITIAL_TICKETS, generatePayrollCycle, getMockHistory, MOCK_AUDIT_LOGS, MOCK_TEMPLATES } from './services/mockData';
-import { Ticket, Status, PayrollCycle, PayrollTask, User, AuditLogEntry, PayrollStage, UserRole, Company, TicketTemplate, ResolutionEvidence } from './types';
+import { Ticket, Status, PayrollCycle, PayrollTask, User, AuditLogEntry, PayrollStage, UserRole, Company, TicketTemplate, ResolutionEvidence, TicketType } from './types';
 
 const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -22,8 +22,9 @@ const App: React.FC = () => {
   
   const [tickets, setTickets] = useState<Ticket[]>(INITIAL_TICKETS);
   
-  // Templates State
+  // Templates & Ticket Types State
   const [templates, setTemplates] = useState<TicketTemplate[]>(MOCK_TEMPLATES);
+  const [availableTicketTypes, setAvailableTicketTypes] = useState<string[]>(Object.values(TicketType));
 
   // User Context (Simulating login switcher for demo)
   const [currentUser, setCurrentUser] = useState<User>(MOCK_USERS[3]); // Default to Admin for demo
@@ -188,6 +189,13 @@ const App: React.FC = () => {
       logAudit('TEMPLATES_UPDATED', 'Se actualizaron las plantillas de resolución de tickets');
   };
 
+  const handleAddTicketType = (newType: string) => {
+    if (!availableTicketTypes.includes(newType)) {
+      setAvailableTicketTypes(prev => [...prev, newType]);
+      logAudit('CONFIG_UPDATED', `Se añadió nuevo tipo de ticket: ${newType}`);
+    }
+  };
+
   return (
     <div className="min-h-screen flex bg-slate-50 font-sans text-slate-900">
       <Sidebar 
@@ -244,6 +252,7 @@ const App: React.FC = () => {
             <TicketSystem 
               tickets={companyTickets}
               templates={templates}
+              ticketTypes={availableTicketTypes}
               currentUser={currentUser}
               onAddComment={handleAddComment}
               onUpdateStatus={handleStatusUpdate}
@@ -260,8 +269,10 @@ const App: React.FC = () => {
               users={MOCK_USERS}
               companies={companies} 
               templates={templates}
+              ticketTypes={availableTicketTypes}
               onAddCompany={handleAddCompany}
               onUpdateTemplates={handleUpdateTemplates}
+              onAddTicketType={handleAddTicketType}
             />
           )}
           {activeTab === 'audit' && (

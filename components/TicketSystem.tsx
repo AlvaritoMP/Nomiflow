@@ -7,6 +7,7 @@ import { analyzeTicketWithGemini } from '../services/geminiService';
 interface TicketSystemProps {
   tickets: Ticket[];
   templates?: TicketTemplate[];
+  ticketTypes?: string[];
   currentUser: User;
   onAddComment: (ticketId: string, text: string) => void;
   onUpdateStatus: (ticketId: string, status: Status) => void;
@@ -15,7 +16,17 @@ interface TicketSystemProps {
   onCreateTicket: (ticket: Omit<Ticket, 'id' | 'createdAt' | 'updatedAt' | 'comments' | 'attachments' | 'status' | 'assignedTo'>) => void;
 }
 
-export const TicketSystem: React.FC<TicketSystemProps> = ({ tickets, templates = [], currentUser, onAddComment, onUpdateStatus, onResolveTicket, onTicketUpdate, onCreateTicket }) => {
+export const TicketSystem: React.FC<TicketSystemProps> = ({ 
+  tickets, 
+  templates = [], 
+  ticketTypes = Object.values(TicketType), // Fallback
+  currentUser, 
+  onAddComment, 
+  onUpdateStatus, 
+  onResolveTicket, 
+  onTicketUpdate, 
+  onCreateTicket 
+}) => {
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(tickets[0]?.id || null);
   const [commentInput, setCommentInput] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -25,7 +36,7 @@ export const TicketSystem: React.FC<TicketSystemProps> = ({ tickets, templates =
   const [newTicketData, setNewTicketData] = useState({
     title: '',
     description: '',
-    type: TicketType.INCIDENT,
+    type: ticketTypes[0] || TicketType.INCIDENT,
     priority: Priority.MEDIUM,
     companyId: ''
   });
@@ -58,7 +69,7 @@ export const TicketSystem: React.FC<TicketSystemProps> = ({ tickets, templates =
     setNewTicketData({
       title: '',
       description: '',
-      type: TicketType.INCIDENT,
+      type: ticketTypes[0] || TicketType.INCIDENT,
       priority: Priority.MEDIUM,
       companyId: tickets[0]?.companyId || '' 
     });
@@ -320,10 +331,10 @@ export const TicketSystem: React.FC<TicketSystemProps> = ({ tickets, templates =
                   <label className="block text-sm font-medium text-slate-700 mb-2">Tipo</label>
                   <select 
                     value={newTicketData.type}
-                    onChange={(e) => setNewTicketData({...newTicketData, type: e.target.value as TicketType})}
+                    onChange={(e) => setNewTicketData({...newTicketData, type: e.target.value})}
                     className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
                   >
-                    {Object.values(TicketType).map(t => (
+                    {ticketTypes.map(t => (
                       <option key={t} value={t}>{t}</option>
                     ))}
                   </select>
