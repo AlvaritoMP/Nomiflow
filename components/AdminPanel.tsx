@@ -430,21 +430,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, companies, templa
                       {aiEnabled ? <ToggleRight size={40} className="fill-indigo-100" /> : <ToggleLeft size={40} className="text-slate-400" />}
                     </button>
                   </div>
-                  <div className="pt-4 border-t border-slate-200">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">API Key (Google Gemini)</label>
-                    <div className="flex gap-2">
-                        <input 
-                            type="password" 
-                            value="************************" 
-                            disabled
-                            className="flex-1 text-sm border border-slate-300 rounded-md px-3 py-2 bg-slate-100 text-slate-500" 
-                        />
-                        <button className="text-xs bg-white border border-slate-300 px-3 py-2 rounded-md font-medium text-slate-700 hover:bg-slate-50">
-                            Actualizar
-                        </button>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">La clave API está configurada en las variables de entorno del servidor.</p>
-                  </div>
+                  
                 </div>
               </div>
 
